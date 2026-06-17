@@ -115,8 +115,12 @@ qt_add_qml_module(CustomPlanModule
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RpiPoller.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RpiPoller.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AutoPilotPlugin/CustomAutoPilotPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AutoPilotPlugin/CustomAutoPilotPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AutoPilotPlugin/CustomLowenheiserComponent.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AutoPilotPlugin/CustomLowenheiserComponent.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePluginFactory.cc
@@ -159,5 +163,6 @@ set(CUSTOM_DEFINITIONS
 # Custom Qt components required
 set(CUSTOM_QT_COMPONENTS
     Core
+    Network
     CACHE INTERNAL "" FORCE
 )

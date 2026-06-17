@@ -6,6 +6,8 @@
 #include "QGCCorePlugin.h"
 #include "QGCOptions.h"
 
+class RpiPoller;
+
 class ComplexMissionItem;
 class PlanCreator;
 
@@ -93,6 +95,7 @@ private:
     CustomOptions *_options = nullptr;
     QQmlApplicationEngine *_qmlEngine = nullptr;
     class CustomOverrideInterceptor *_selector = nullptr;
+    RpiPoller *_rpiPoller = nullptr;
     QVariantList _customSettingsList; // Not to be mixed up with QGCCorePlugin implementation
 };
 

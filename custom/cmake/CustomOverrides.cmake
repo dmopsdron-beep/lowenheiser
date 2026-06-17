@@ -6,7 +6,15 @@
 # ----------------------------------------------------------------------------
 # Application Branding
 # ----------------------------------------------------------------------------
-set(QGC_APP_NAME "Custom-QGroundControl" CACHE STRING "App Name" FORCE)
+# QGC_APP_NAME es el nombre del target CMake y del ejecutable — debe ser ASCII sin espacios
+set(QGC_APP_NAME "LowenheiserGCS" CACHE STRING "App Name" FORCE)
+set(QGC_APP_DESCRIPTION "Löweheiser Ground Control Station" CACHE STRING "Application description" FORCE)
+set(QGC_ORG_NAME "Löweheiser" CACHE STRING "Organization name" FORCE)
+set(QGC_ORG_DOMAIN "lowenheiser.com" CACHE STRING "Organization domain" FORCE)
+set(QGC_PACKAGE_NAME "com.lowenheiser.gcs" CACHE STRING "Package identifier" FORCE)
+
+# Ampliar rango Qt aceptado para Qt 6.11.x (build-config.json dice 6.10.3 pero 6.11.1 es compatible)
+set(QGC_QT_MAXIMUM_VERSION "6.11.99" CACHE STRING "Maximum supported Qt version" FORCE)
 
 # ----------------------------------------------------------------------------
 # Custom Icons and Graphics
@@ -36,10 +44,11 @@ endif()
 # Feature Set Customization
 # ----------------------------------------------------------------------------
 
-# Build a single flight stack by disabling APM support
-set(QGC_DISABLE_APM_MAVLINK ON CACHE BOOL "Disable APM Dialect" FORCE)
-set(QGC_DISABLE_APM_PLUGIN ON CACHE BOOL "Disable APM Plugin" FORCE)
-set(QGC_DISABLE_APM_PLUGIN_FACTORY ON CACHE BOOL "Disable APM Plugin Factory" FORCE)
-
-# Implement custom PX4 plugin factory
+# Löweheiser GCS: ArduPilot/APM habilitado (Pixhawk Cube 4 + ArduPilot)
+# PX4 plugin factory deshabilitada — no se usa en este ecosistema
 set(QGC_DISABLE_PX4_PLUGIN_FACTORY ON CACHE BOOL "Disable PX4 Plugin Factory" FORCE)
+
+# GStreamer deshabilitado en Fase 0 — no necesario para telemetría de generador
+set(QGC_ENABLE_GST_VIDEOSTREAMING OFF CACHE BOOL "Disable GStreamer video backend" FORCE)
+set(QGC_ENABLE_QT_VIDEOSTREAMING OFF CACHE BOOL "Disable Qt video backend" FORCE)
+set(QGC_ENABLE_UVC OFF CACHE BOOL "Disable UVC" FORCE)

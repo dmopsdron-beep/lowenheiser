@@ -5,14 +5,15 @@ import QtQuick.Layouts
 import QGroundControl
 import QGroundControl.Controls
 import Custom.Widgets
+import Custom.RpiPoller
 
 Item {
-    property var parentToolInsets                       // These insets tell you what screen real estate is available for positioning the controls in your overlay
-    property var totalToolInsets:   _totalToolInsets    // The insets updated for the custom overlay additions
+    property var parentToolInsets
+    property var totalToolInsets:   _totalToolInsets
     property var mapControl
 
-    readonly property string noGPS:         qsTr("NO GPS")
-    readonly property real   indicatorValueWidth:   ScreenTools.defaultFontPixelWidth * 7
+    readonly property string noGPS:              qsTr("NO GPS")
+    readonly property real   indicatorValueWidth: ScreenTools.defaultFontPixelWidth * 7
 
     property var    _activeVehicle:         QGroundControl.multiVehicleManager.activeVehicle
     property real   _indicatorDiameter:     ScreenTools.defaultFontPixelWidth * 18
@@ -28,6 +29,26 @@ Item {
     property string _messageText:           ""
     property real   _toolsMargin:           ScreenTools.defaultFontPixelWidth * 0.75
 
+    // Generator / EFI values (safe defaults when no vehicle)
+    property real _genRpm:      _activeVehicle ? _activeVehicle.generator.genSpeed.rawValue       : 0
+    property real _busVoltage:  _activeVehicle ? _activeVehicle.generator.busVoltage.rawValue     : 0
+    property real _loadCurrent: _activeVehicle ? _activeVehicle.generator.loadCurrent.rawValue    : 0
+    property real _genTemp:     _activeVehicle ? _activeVehicle.generator.genTemperature.rawValue : 0
+    property real _rectTemp:    _activeVehicle ? _activeVehicle.generator.rectifierTemperature.rawValue : 0
+    property real _efiRpm:      _activeVehicle ? _activeVehicle.efi.rpm.rawValue                  : 0
+    property real _cht:         _activeVehicle ? _activeVehicle.efi.cht.rawValue                  : 0
+    property real _tps:         _activeVehicle ? _activeVehicle.efi.throttlePosition.rawValue     : 0
+
+    // Paleta Löweheiser (misma que el Tuner / CustomPlugin.cc) — centralizada
+    readonly property color _panelBg:       Qt.rgba(0x16/255, 0x1b/255, 0x22/255, 0.90)
+    readonly property color _panelHeaderBg: Qt.rgba(0x00/255, 0xa8/255, 0x78/255, 0.16)
+    readonly property color _accent:        "#00a878"
+    readonly property color _textPrimary:   "#e6edf3"
+    readonly property color _textMuted:     "#8b949e"
+    readonly property color _warn:          "#f39c12"
+    readonly property color _alarm:         "#e74c3c"
+    readonly property color _rowAlt:        Qt.rgba(1, 1, 1, 0.03)
+
     function secondsToHHMMSS(timeS) {
         var sec_num = parseInt(timeS, 10);
         var hours   = Math.floor(sec_num / 3600);
@@ -39,10 +60,17 @@ Item {
         return hours+':'+minutes+':'+seconds;
     }
 
+    // Helper: color by threshold (green / orange / red)
+    function valueColor(val, warnThreshold, alarmThreshold) {
+        if (val >= alarmThreshold) return _alarm
+        if (val >= warnThreshold)  return _warn
+        return _accent
+    }
+
     QGCToolInsets {
         id:                     _totalToolInsets
         leftEdgeTopInset:       parentToolInsets.leftEdgeTopInset
-        leftEdgeCenterInset:    exampleRectangle.leftEdgeCenterInset
+        leftEdgeCenterInset:    generatorPanel.leftEdgeCenterInset
         leftEdgeBottomInset:    parentToolInsets.leftEdgeBottomInset
         rightEdgeTopInset:      parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset:   parentToolInsets.rightEdgeCenterInset
@@ -55,24 +83,175 @@ Item {
         bottomEdgeRightInset:   parent.height - attitudeIndicator.y
     }
 
-    // This is an example of how you can use parent tool insets to position an element on the custom fly view layer
-    // - we use parent topEdgeLeftInset to position the widget below the toolstrip
-    // - we use parent bottomEdgeLeftInset to dodge the virtual joystick if enabled
-    // - we use the parent leftEdgeTopInset to size our element to the same width as the ToolStripAction
-    // - we export the width of this element as the leftEdgeCenterInset so that the map will recenter if the vehicle flys behind this element
+    //-------------------------------------------------------------------------
+    //-- Generator / EFI telemetry panel (left side)
     Rectangle {
-        id: exampleRectangle
-        visible: false // to see this example, set this to true. To view insets, enable the insets viewer FlyView.qml
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.topMargin: parentToolInsets.topEdgeLeftInset + _toolsMargin
-        anchors.bottomMargin: parentToolInsets.bottomEdgeLeftInset + _toolsMargin
-        anchors.leftMargin: _toolsMargin
-        width: parentToolInsets.leftEdgeTopInset - _toolsMargin
-        color: 'red'
+        id:                     generatorPanel
+        visible:                _activeVehicle !== null && _activeVehicle !== undefined
+        anchors.left:           parent.left
+        anchors.leftMargin:     _toolsMargin
+        anchors.top:            parent.top
+        anchors.topMargin:      parentToolInsets.topEdgeLeftInset + _toolsMargin
+        width:                  ScreenTools.defaultFontPixelWidth * 28
+        height:                 panelColumn.implicitHeight
+        color:                  _panelBg
+        radius:                 ScreenTools.defaultFontPixelWidth * 0.5
+        border.color:           _accent
+        border.width:           1
+        clip:                   true
 
-        property real leftEdgeCenterInset: visible ? x + width : 0
+        property real leftEdgeCenterInset: visible ? x + width + _toolsMargin : 0
+
+        Column {
+            id:                 panelColumn
+            width:              parent.width
+            spacing:            0
+
+            // --- Cabecera principal con franja de acento ---
+            Rectangle {
+                width:  parent.width
+                height: ScreenTools.defaultFontPixelHeight * 2.0
+                color:  _panelHeaderBg
+
+                Text {
+                    anchors.centerIn: parent
+                    text:           "GENERADOR"
+                    color:          _accent
+                    font.bold:      true
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.15
+                }
+                // Indicador de conectividad RPi
+                Rectangle {
+                    anchors.right:          parent.right
+                    anchors.rightMargin:    ScreenTools.defaultFontPixelWidth
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:  ScreenTools.defaultFontPixelHeight * 0.6
+                    height: width
+                    radius: width / 2
+                    color:  RpiPoller.online ? _accent : _alarm
+                    border.width: 1
+                    border.color: Qt.rgba(0, 0, 0, 0.4)
+                    ToolTip.visible:  rpiDotArea.containsMouse
+                    ToolTip.text:     RpiPoller.online ? qsTr("RPi conectada") : qsTr("RPi sin conexión")
+                    MouseArea { id: rpiDotArea; anchors.fill: parent; hoverEnabled: true }
+                }
+                Rectangle {  // línea de acento bajo la cabecera
+                    anchors.bottom: parent.bottom
+                    width:  parent.width
+                    height: 1
+                    color:  _accent
+                }
+            }
+
+            // --- Generador ---
+            GenRow { rowIndex: 0; label: qsTr("RPM GEN");   value: _genRpm.toFixed(0);    unit: "rpm"; vcolor: valueColor(_genRpm, 3500, 4000) }
+            GenRow { rowIndex: 1; label: qsTr("VOLTAJE");   value: _busVoltage.toFixed(1); unit: "V";  vcolor: valueColor(Math.abs(_busVoltage - 28), 2, 4) }
+            GenRow { rowIndex: 2; label: qsTr("CORRIENTE"); value: _loadCurrent.toFixed(1); unit: "A"; vcolor: valueColor(_loadCurrent, 60, 80) }
+            GenRow { rowIndex: 3; label: qsTr("T° GEN");    value: _genTemp.toFixed(0);   unit: "°C";  vcolor: valueColor(_genTemp, 90, 110) }
+            GenRow { rowIndex: 4; label: qsTr("T° RECT");   value: _rectTemp.toFixed(0);  unit: "°C";  vcolor: valueColor(_rectTemp, 80, 100) }
+
+            // --- Sub-cabecera EFI ---
+            SectionHeader { title: "EFI" }
+
+            GenRow { rowIndex: 0; label: qsTr("RPM EFI"); value: _efiRpm.toFixed(0); unit: "rpm"; vcolor: valueColor(_efiRpm, 3500, 4000) }
+            GenRow { rowIndex: 1; label: qsTr("CHT");     value: _cht.toFixed(0);    unit: "°C";  vcolor: valueColor(_cht, 180, 220) }
+            GenRow { rowIndex: 2; label: qsTr("TPS");     value: _tps.toFixed(0);    unit: "%";   vcolor: _textPrimary }
+
+            // --- Datos de la RPi (solo si online y con datos) ---
+            Loader {
+                active:     RpiPoller.online && Object.keys(RpiPoller.data).length > 0
+                width:      parent.width
+                sourceComponent: Component {
+                    Column {
+                        width:   panelColumn.width
+                        spacing: 0
+
+                        SectionHeader { title: "RPi" }
+
+                        Repeater {
+                            model: Object.keys(RpiPoller.data)
+                            delegate: GenRow {
+                                rowIndex: index
+                                label:  modelData
+                                value:  {
+                                    var v = RpiPoller.data[modelData]
+                                    return (typeof v === "number") ? v.toFixed(1) : String(v)
+                                }
+                                unit:   ""
+                                vcolor: _textPrimary
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Espaciador inferior
+            Item { width: parent.width; height: ScreenTools.defaultFontPixelHeight * 0.4 }
+        }
+    }
+
+    // Sub-cabecera de sección (EFI / RPi)
+    component SectionHeader: Rectangle {
+        property string title: ""
+        width:  panelColumn.width
+        height: ScreenTools.defaultFontPixelHeight * 1.7
+        color:  _panelHeaderBg
+
+        Text {
+            anchors.centerIn: parent
+            text:           parent.title
+            color:          _accent
+            font.bold:      true
+            font.pointSize: ScreenTools.defaultFontPointSize * 1.05
+        }
+    }
+
+    // Fila de dato: etiqueta · valor · unidad, con zebra striping
+    component GenRow: Rectangle {
+        property string label:    ""
+        property string value:    "---"
+        property string unit:     ""
+        property color  vcolor:   _textPrimary
+        property int    rowIndex: 0
+
+        width:  panelColumn.width
+        height: ScreenTools.defaultFontPixelHeight * 1.7
+        color:  (rowIndex % 2 === 1) ? _rowAlt : "transparent"
+
+        Row {
+            anchors.fill:           parent
+            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth
+            anchors.rightMargin:    ScreenTools.defaultFontPixelWidth
+            spacing: 0
+
+            Text {
+                width:       (parent.width) * 0.50
+                height:      parent.height
+                verticalAlignment: Text.AlignVCenter
+                text:        label
+                color:       _textMuted
+                font.pointSize: ScreenTools.defaultFontPointSize
+                elide:       Text.ElideRight
+            }
+            Text {
+                width:       (parent.width) * 0.34
+                height:      parent.height
+                verticalAlignment:   Text.AlignVCenter
+                horizontalAlignment: Text.AlignRight
+                text:        value
+                color:       vcolor
+                font.pointSize: ScreenTools.defaultFontPointSize
+                font.bold:   true
+            }
+            Text {
+                width:       (parent.width) * 0.16
+                height:      parent.height
+                verticalAlignment: Text.AlignVCenter
+                text:        unit ? " " + unit : ""
+                color:       _textMuted
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+            }
+        }
     }
 
     //-------------------------------------------------------------------------
