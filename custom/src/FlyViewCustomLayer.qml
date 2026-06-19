@@ -30,14 +30,30 @@ Item {
     property real   _toolsMargin:           ScreenTools.defaultFontPixelWidth * 0.75
 
     // Generator / EFI values (safe defaults when no vehicle)
-    property real _genRpm:      _activeVehicle ? _activeVehicle.generator.genSpeed.rawValue       : 0
-    property real _busVoltage:  _activeVehicle ? _activeVehicle.generator.busVoltage.rawValue     : 0
-    property real _loadCurrent: _activeVehicle ? _activeVehicle.generator.loadCurrent.rawValue    : 0
-    property real _genTemp:     _activeVehicle ? _activeVehicle.generator.genTemperature.rawValue : 0
-    property real _rectTemp:    _activeVehicle ? _activeVehicle.generator.rectifierTemperature.rawValue : 0
-    property real _efiRpm:      _activeVehicle ? _activeVehicle.efi.rpm.rawValue                  : 0
-    property real _cht:         _activeVehicle ? _activeVehicle.efi.cht.rawValue                  : 0
-    property real _tps:         _activeVehicle ? _activeVehicle.efi.throttlePosition.rawValue     : 0
+    property real _efiRpm:         _activeVehicle ? _activeVehicle.efi.rpm.rawValue                    : 0
+    property real _busVoltage:     _activeVehicle ? _activeVehicle.generator.busVoltage.rawValue       : 0
+    property real _loadCurrent:    _activeVehicle ? _activeVehicle.generator.loadCurrent.rawValue      : 0
+    property real _batteryCurrent: _activeVehicle ? _activeVehicle.generator.batteryCurrent.rawValue   : 0
+    property real _power:          _activeVehicle ? _activeVehicle.generator.powerGenerated.rawValue   : 0
+    property real _cht:            _activeVehicle ? _activeVehicle.efi.cylinderTemp.rawValue           : 0
+    property real _intakeTemp:     _activeVehicle ? _activeVehicle.efi.intakeTemp.rawValue             : 0
+    property real _tps:            _activeVehicle ? _activeVehicle.efi.throttlePos.rawValue            : 0
+    property real _runtime:        _activeVehicle ? _activeVehicle.generator.runtime.rawValue          : 0
+
+    // Battery / autonomy
+    // busVoltage can drop to 0 when generator is idle — hold the last valid reading for SOC
+    property real _lastGoodVoltage: 48.0
+    property real _effectiveVoltage: (_busVoltage > 42.0) ? _busVoltage : _lastGoodVoltage
+    // 12S LiPo: 50.4V = 100%, 42.0V = 0%
+    property real _batPercent:    Math.max(0, Math.min(100, (_effectiveVoltage - 42.0) / (50.4 - 42.0) * 100))
+    property real _batCapacity:   6000  // mAh
+    property real _batRemaining:  Math.max(0, _batCapacity * _batPercent / 100)
+    // batteryCurrent (MAVLink bat_current): positive = charging battery, negative = discharging
+    // This is the direct battery current, valid even when generator is idle
+    property real _dischargeA:    (_batteryCurrent > 0.5) ? _batteryCurrent : 0
+    property real _autonMin:      (_dischargeA > 0.5) ? (_batRemaining / (_dischargeA * 1000 / 60)) : 9999
+    property real _balance:       Math.abs(_power)  // W produced by generator
+
 
     // Paleta Löweheiser (misma que el Tuner / CustomPlugin.cc) — centralizada
     readonly property color _panelBg:       Qt.rgba(0x16/255, 0x1b/255, 0x22/255, 0.90)
@@ -65,6 +81,15 @@ Item {
         if (val >= alarmThreshold) return _alarm
         if (val >= warnThreshold)  return _warn
         return _accent
+    }
+
+    // Hold last busVoltage > 42V so SOC stays valid when generator is at idle
+    Connections {
+        target: _activeVehicle ? _activeVehicle.generator.busVoltage : null
+        function onRawValueChanged() {
+            if (_activeVehicle && _activeVehicle.generator.busVoltage.rawValue > 42.0)
+                _lastGoodVoltage = _activeVehicle.generator.busVoltage.rawValue
+        }
     }
 
     QGCToolInsets {
@@ -128,7 +153,7 @@ Item {
                     width:  ScreenTools.defaultFontPixelHeight * 0.6
                     height: width
                     radius: width / 2
-                    color:  RpiPoller.online ? _accent : _alarm
+                    color:  (_activeVehicle && (_busVoltage > 0 || _efiRpm > 0)) ? _accent : _alarm
                     border.width: 1
                     border.color: Qt.rgba(0, 0, 0, 0.4)
                     ToolTip.visible:  rpiDotArea.containsMouse
@@ -143,19 +168,18 @@ Item {
                 }
             }
 
-            // --- Generador ---
-            GenRow { rowIndex: 0; label: qsTr("RPM GEN");   value: _genRpm.toFixed(0);    unit: "rpm"; vcolor: valueColor(_genRpm, 3500, 4000) }
-            GenRow { rowIndex: 1; label: qsTr("VOLTAJE");   value: _busVoltage.toFixed(1); unit: "V";  vcolor: valueColor(Math.abs(_busVoltage - 28), 2, 4) }
-            GenRow { rowIndex: 2; label: qsTr("CORRIENTE"); value: _loadCurrent.toFixed(1); unit: "A"; vcolor: valueColor(_loadCurrent, 60, 80) }
-            GenRow { rowIndex: 3; label: qsTr("T° GEN");    value: _genTemp.toFixed(0);   unit: "°C";  vcolor: valueColor(_genTemp, 90, 110) }
-            GenRow { rowIndex: 4; label: qsTr("T° RECT");   value: _rectTemp.toFixed(0);  unit: "°C";  vcolor: valueColor(_rectTemp, 80, 100) }
-
-            // --- Sub-cabecera EFI ---
-            SectionHeader { title: "EFI" }
-
-            GenRow { rowIndex: 0; label: qsTr("RPM EFI"); value: _efiRpm.toFixed(0); unit: "rpm"; vcolor: valueColor(_efiRpm, 3500, 4000) }
-            GenRow { rowIndex: 1; label: qsTr("CHT");     value: _cht.toFixed(0);    unit: "°C";  vcolor: valueColor(_cht, 180, 220) }
-            GenRow { rowIndex: 2; label: qsTr("TPS");     value: _tps.toFixed(0);    unit: "%";   vcolor: _textPrimary }
+            // --- Motor / Generador (panel unificado) ---
+            GenRow { rowIndex: 0; label: qsTr("RPM");       value: _efiRpm.toFixed(0);        unit: "rpm"; vcolor: _accent }
+            GenRow { rowIndex: 1; label: qsTr("VOLTAJE");   value: _busVoltage.toFixed(1);    unit: "V";   vcolor: (_busVoltage < 45 || _busVoltage >= 49.9) ? _alarm : (_busVoltage < 46 || _busVoltage >= 49.0) ? _warn : _accent }
+            GenRow { rowIndex: 2; label: qsTr("CORRIENTE"); value: _batteryCurrent.toFixed(1); unit: "A";   vcolor: (_batteryCurrent > 5) ? _alarm : (_batteryCurrent > 1) ? _warn : _accent }
+            GenRow { rowIndex: 3; label: qsTr("POTENCIA");  value: _power.toFixed(0);         unit: "W";   vcolor: _textPrimary }
+            GenRow { rowIndex: 4; label: qsTr("CHT");       value: _cht.toFixed(0);           unit: "°C";  vcolor: valueColor(_cht, 180, 220) }
+            GenRow { rowIndex: 5; label: qsTr("T° ADMS");   value: _intakeTemp.toFixed(0);    unit: "°C";  vcolor: valueColor(_intakeTemp, 50, 65) }
+            GenRow { rowIndex: 6; label: qsTr("TPS");       value: _tps.toFixed(0);           unit: "%";   vcolor: _textPrimary }
+            GenRow { rowIndex: 7; label: qsTr("RUNTIME");   value: secondsToHHMMSS(_runtime); unit: "";    vcolor: _textMuted }
+            GenRow { rowIndex: 8; label: qsTr("BATERÍA");   value: _batPercent.toFixed(0);    unit: "%";   vcolor: (_batPercent < 15) ? _alarm : (_batPercent < 30) ? _warn : _accent }
+            GenRow { rowIndex: 9; label: qsTr("BALANCE");   value: _balance.toFixed(0);       unit: "W";   vcolor: _accent }
+            GenRow { rowIndex: 10; label: qsTr("AUTONOMÍA"); value: (_autonMin >= 9999) ? "---" : _autonMin.toFixed(1); unit: "min"; vcolor: (_autonMin < 2) ? _alarm : (_autonMin < 5) ? _warn : _accent }
 
             // --- Datos de la RPi (solo si online y con datos) ---
             Loader {
