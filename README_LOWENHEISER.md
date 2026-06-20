@@ -1,38 +1,56 @@
 # Löweheiser GCS
 
-Estación de control en tierra (Ground Control Station) basada en QGroundControl, personalizada para los sistemas generadores híbridos Löweheiser.
+A Ground Control Station based on QGroundControl, customized for Löweheiser hybrid generator systems.
 
-## Instalación (Windows)
+## Installation (Windows)
 
-1. Ve a la página de [Releases](https://github.com/dmopsdron-beep/lowenheiser/releases/latest)
-2. Descarga el archivo `LowenheiserGCS-installer-AMD64.exe`
-3. Ejecuta el instalador y sigue los pasos en pantalla
-4. Conecta tu Pixhawk/Cube por USB y abre la aplicación
+1. Go to the [Releases page](https://github.com/dmopsdron-beep/lowenheiser/releases/latest)
+2. Download `LowenheiserGCS-installer-AMD64.exe`
+3. Run the installer and follow the on-screen steps
+4. Connect your Pixhawk/Cube via USB and open the application
 
-## Requisitos
+### About the Windows security warning
 
-- Windows 10 o superior (64 bits)
-- Cable USB para conexión con el autopiloto (Pixhawk Cube 4 o compatible)
-- ArduPilot 4.2.3 o superior con telemetría de generador (`GENERATOR_STATUS`) y EFI (`EFI_STATUS`) habilitada
+The first time you run the installer, Windows may show a blue **"Windows protected your PC"** screen (SmartScreen). This happens because the installer is not yet digitally signed with a paid certificate — it does **not** mean the file is unsafe.
 
-## Panel de telemetría del generador
+To proceed:
+1. Click **"More info"**
+2. Click **"Run anyway"**
 
-La aplicación añade un panel lateral con los datos en tiempo real del generador:
+This is expected and normal for new, independently published software. We're working on adding a code signing certificate to remove this warning in a future release.
 
-| Campo | Descripción |
+## Requirements
+
+- Windows 10 or later (64-bit)
+- USB cable to connect to the autopilot (Pixhawk Cube 4 or compatible)
+- ArduPilot 4.2.3 or later, with generator telemetry (`GENERATOR_STATUS`) and EFI (`EFI_STATUS`) enabled
+
+## Generator Telemetry Panel
+
+The application adds a side panel showing live generator data:
+
+| Field | Description |
 |---|---|
-| RPM | Régimen del motor (lectura EFI) |
-| VOLTAJE | Voltaje del bus (12S) |
-| CORRIENTE | Corriente de batería: positivo = cargando, negativo = descargando |
-| POTENCIA | Potencia generada |
-| CHT | Temperatura de culata |
-| T° ADMS | Temperatura de admisión/ambiente |
-| TPS | Posición de la mariposa (throttle) |
-| RUNTIME | Tiempo de funcionamiento del motor |
-| BATERÍA | Estado de carga estimado (%) |
-| BALANCE | Potencia generada (W) |
-| AUTONOMÍA | Minutos estimados de autonomía a la descarga actual |
+| RPM | Engine speed (from EFI) |
+| VOLTAGE | Bus voltage (12S) |
+| CURRENT | Battery current: positive = charging, negative = discharging |
+| POWER | Power generated |
+| CHT | Cylinder head temperature |
+| INTAKE TEMP | Intake / ambient temperature |
+| TPS | Throttle position |
+| RUNTIME | Engine running time |
+| BATTERY | Estimated state of charge (%) |
+| BALANCE | Power generated (W) |
+| AUTONOMY | Estimated remaining runtime (minutes) at the current discharge rate |
 
-## Soporte
+## Support
 
-Para incidencias o consultas sobre el panel de telemetría, abre un [issue en GitHub](https://github.com/dmopsdron-beep/lowenheiser/issues).
+For issues or questions about the telemetry panel, please open an [issue on GitHub](https://github.com/dmopsdron-beep/lowenheiser/issues).
+
+## License
+
+This project is free to download and use. See [LICENSE-GPL](LICENSE-GPL) for details. It is a fork of [QGroundControl](https://github.com/mavlink/qgroundcontrol), licensed under GPLv3.
+
+## Terms of Use & Safety Notice
+
+Please read [TERMS.md](TERMS.md) before using this software — it includes an important safety notice about relying on this tool to monitor generator/engine status.

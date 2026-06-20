@@ -1,0 +1,71 @@
+name: Löweheiser Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    name: Build Windows Installer
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build Setup
+        uses: ./.github/actions/build-setup
+        with:
+          qt-host: windows
+          qt-arch: win64_msvc2022_64
+          build-type: Release
+
+      - name: Configure
+        uses: ./.github/actions/cmake-configure
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+          extra-args: >-
+            -DQGC_CUSTOM_DIR=custom
+            -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF
+
+      - name: Build
+        uses: ./.github/actions/cmake-build
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+
+      - name: Create Installer
+        uses: ./.github/actions/cmake-install
+        with:
+          build-dir: ${{ runner.temp }}\build
+          build-type: Release
+
+      - name: Locate installer
+        id: find-installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "${{ runner.temp }}\build" -Filter "*installer*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            Write-Error "Installer .exe not found"
+            exit 1
+          }
+          echo "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload installer to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find-installer.outputs.path }}
+          generate_release_notes: true
